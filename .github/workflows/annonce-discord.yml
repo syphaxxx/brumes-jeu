@@ -1,0 +1,24 @@
+# Annonce chaque version publiée sur le canal Discord.
+# L'adresse du webhook est le secret DISCORD_WEBHOOK du dépôt : jamais dans un fichier (le dépôt est public).
+name: Annonce Discord
+on:
+  release:
+    types: [published]
+permissions:
+  contents: read
+jobs:
+  annonce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Annoncer la version sur Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          NOM: ${{ github.event.release.name }}
+          LIEN: ${{ github.event.release.html_url }}
+          RESUME: ${{ github.event.release.body }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then echo "Pas de webhook : annonce sautée."; exit 0; fi
+          # Discord limite un message à 2000 caractères : on garde le début des notes.
+          TEXTE=$(printf '**%s** est disponible !\n%s\n\n%s' "$NOM" "$LIEN" "$(printf '%s' "$RESUME" | head -c 1500)")
+          jq -n --arg c "$TEXTE" '{content: $c, username: "Brumes"}' > message.json
+          curl -sS -f -H "Content-Type: application/json" -d @message.json "$DISCORD_WEBHOOK" || echo "Discord a refusé le message (la version reste publiée)."
