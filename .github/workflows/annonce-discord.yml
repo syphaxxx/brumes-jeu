@@ -17,8 +17,13 @@ jobs:
           LIEN: ${{ github.event.release.html_url }}
           RESUME: ${{ github.event.release.body }}
         run: |
-          if [ -z "$DISCORD_WEBHOOK" ]; then echo "Pas de webhook : annonce sautée."; exit 0; fi
-          # Discord limite un message à 2000 caractères : on garde le début des notes.
-          TEXTE=$(printf '**%s** est disponible !\n%s\n\n%s' "$NOM" "$LIEN" "$(printf '%s' "$RESUME" | head -c 1500)")
+          if [ -z "$DISCORD_WEBHOOK" ]; then echo "Pas de webhook : annonce impossible."; exit 1; fi
+          # Le message garde le résumé (avant la ligne ---) ; Discord limite un message à 2000 caractères.
+          COURT=$(printf '%s' "$RESUME" | sed '/^---/,$d' | head -c 1700)
+          TEXTE=$(printf '**%s est disponible !**
+Télécharger / Download : %s
+
+%s' "$NOM" "$LIEN" "$COURT")
           jq -n --arg c "$TEXTE" '{content: $c, username: "Brumes"}' > message.json
-          curl -sS -f -H "Content-Type: application/json" -d @message.json "$DISCORD_WEBHOOK" || echo "Discord a refusé le message (la version reste publiée)."
+          # wait=true : Discord répond avec le message créé ; une erreur fait échouer l'étape, elle ne passe plus inaperçue.
+          curl -sS -f -H "Content-Type: application/json" -d @message.json "$DISCORD_WEBHOOK?wait=true" | jq -r '"Message Discord créé : " + .id'
